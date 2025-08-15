@@ -6,6 +6,7 @@ use Filament\Support\Contracts\HasLabel;
 
 enum StatusSiswa: string implements HasLabel, HasColor{
     case AKTIF = 'aktif';
+    case SAMBANG = 'sambang';
     case NONAKTIF = 'nonaktif';
     case LULUS = 'lulus';
     case KELUAR = 'keluar';
@@ -15,6 +16,7 @@ enum StatusSiswa: string implements HasLabel, HasColor{
     {
         return match ($this) {
             self::AKTIF => 'Aktif',
+            self::SAMBANG => 'Sambang',
             self::NONAKTIF => 'Nonaktif',
             self::LULUS => 'Lulus',
             self::KELUAR => 'Keluar',
@@ -26,6 +28,7 @@ enum StatusSiswa: string implements HasLabel, HasColor{
     {
         return match ($this) {
             self::AKTIF => 'success',
+            self::SAMBANG => 'gray',
             self::NONAKTIF => 'gray',
             self::LULUS => 'primary',
             self::KELUAR => 'danger',

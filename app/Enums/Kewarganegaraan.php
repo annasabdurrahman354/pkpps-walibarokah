@@ -11,8 +11,8 @@ enum Kewarganegaraan : string implements HasLabel, HasColor {
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::WNI => 'WNI (Warga Negara Indonesia)',
-            self::WNA => 'WNA (Warga Negara Asing)',
+            self::WNI => 'WNI',
+            self::WNA => 'WNA',
         };
     }
 
@@ -20,7 +20,7 @@ enum Kewarganegaraan : string implements HasLabel, HasColor {
     {
         return match ($this) {
             self::WNI => 'success',
-            self::WNA => 'danger',
+            self::WNA => 'warning',
         };
     }
 }

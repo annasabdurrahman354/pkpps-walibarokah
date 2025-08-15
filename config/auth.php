@@ -36,17 +36,9 @@ return [
     */
 
     'guards' => [
-        'operator' => [
-            'driver' => 'session',
-            'provider' => 'operator',
-        ],
-        'guru' => [
-            'driver' => 'session',
-            'provider' => 'guru',
-        ],
         'web' => [
             'driver' => 'session',
-            'provider' => 'operator',
+            'provider' => 'users',
         ],
     ],
 
@@ -69,14 +61,6 @@ return [
     */
 
     'providers' => [
-        'operator' => [
-            'driver' => 'eloquent',
-            'model' => App\Models\Operator::class,
-        ],
-        'guru' => [
-            'driver' => 'eloquent',
-            'model' => App\Models\Guru::class,
-        ],
         'users' => [
             'driver' => 'eloquent',
             'model' => App\Models\User::class,
@@ -105,18 +89,6 @@ return [
     'passwords' => [
         'users' => [
             'provider' => 'users',
-            'table' => 'password_reset_tokens',
-            'expire' => 60,
-            'throttle' => 60,
-        ],
-        'guru' => [
-            'provider' => 'guru',
-            'table' => 'password_reset_tokens',
-            'expire' => 60,
-            'throttle' => 60,
-        ],
-        'operator' => [
-            'provider' => 'operator',
             'table' => 'password_reset_tokens',
             'expire' => 60,
             'throttle' => 60,

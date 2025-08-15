@@ -6,8 +6,8 @@ return new class extends SettingsMigration
 {
     public function up(): void
     {
-        $this->migrator->add('email.from_address', 'no-reply@tcm-walibarokah.org');
-        $this->migrator->add('email.from_name', 'Tes Calon Mubaligh');
+        $this->migrator->add('email.from_address', 'no-reply@pkpps-walibarokah.org');
+        $this->migrator->add('email.from_name', 'PKPPS Wali Barokah (no-reply)');
         $this->migrator->add('email.driver', 'smtp');
         $this->migrator->add('email.host', null);
         $this->migrator->add('email.port', 587);

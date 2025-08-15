@@ -29,6 +29,7 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Fieldset;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Components\Tabs;
 use Filament\Forms\Components\Tabs\Tab;
 use Filament\Forms\Components\TagsInput;
@@ -37,16 +38,24 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\ToggleButtons;
 use Filament\Forms\Get;
-use Filament\Forms\Set;
+use Filament\Tables\Columns\SpatieMediaLibraryImageColumn;
+use Filament\Tables\Columns\TextColumn;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Image\Enums\Fit;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
-class Siswa extends Model
+class Siswa extends Model implements  HasMedia
 {
     use SoftDeletes, HasUlids;
+    use InteractsWithMedia;
 
     // The table associated with the model.
     protected $table = 'siswa';
@@ -71,7 +80,7 @@ class Siswa extends Model
         'kelas_sekolah',
         'rombel_kelas_sekolah',
         'kelas_pondok',
-        'tanggal_masuk',
+        'tanggal_pendaftaran',
         'kategori_administrasi',
         'sumber_pembiayaan',
         'status_siswa',
@@ -173,7 +182,7 @@ class Siswa extends Model
 
     // The attributes that should be cast to native types.
     protected $casts = [
-        'tanggal_masuk' => 'date',
+        'tanggal_pendaftaran' => 'date',
         'tanggal_lahir' => 'date',
         'tanggal_lahir_ayah' => 'date',
         'tanggal_lahir_ibu' => 'date',
@@ -226,6 +235,59 @@ class Siswa extends Model
         'updated_at',
         'deleted_at'
     ];
+
+    protected function kelasRombel(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->kelas_sekolah.$this->rombel_kelas_sekolah,
+        );
+    }
+
+    protected function recordTtile(): Attribute
+    {
+        return Attribute::make(
+            get: fn() => $this->nama." (".$this->kelasRombel.")",
+        );
+    }
+
+    public function registerMediaConversions(Media $media = null): void
+    {
+        $this->addMediaConversion('thumb')
+            ->fit(Fit::Contain, 256, 256)
+            ->nonQueued();
+    }
+
+    public function syncMediaName(){
+        foreach($this->getMedia('siswa_foto') as $media){
+            $media->file_name = getMediaFilename($this, $media);
+            $media->save();
+        }
+    }
+
+    public function scopeWhereKelasSekolah($query, $kelas)
+    {
+        return $query->where('kelas_sekolah', $kelas);
+    }
+
+    public function scopeWhereKelasSekolahIn($query, $kelas)
+    {
+        return $query->whereIn('kelas_sekolah', $kelas);
+    }
+
+    public function scopeWhereKelasPondok($query, $kelas)
+    {
+        return $query->where('kelas_pondok', $kelas);
+    }
+
+    public function scopeWhereDitagih($query)
+    {
+        return $query->whereNotIn('status_siswa', [StatusSiswa::KELUAR, StatusSiswa::LULUS]);
+    }
+
+    public function tagihanAdministrasi(): HasMany
+    {
+        return $this->hasMany(TagihanAdministrasi::class,);
+    }
 
     // Relationships
     public function tempatLahir(): BelongsTo
@@ -328,7 +390,7 @@ class Siswa extends Model
         return $this->belongsTo(Kelurahan::class, 'kelurahan_wali_id');
     }
 
-    public static function getFormSchema(): array
+    public static function getForm(): array
     {
         return [
             Tabs::make('Data Siswa')
@@ -337,6 +399,15 @@ class Siswa extends Model
                         ->schema([
                             Section::make('Identitas')
                                 ->schema([
+                                    SpatieMediaLibraryFileUpload::make('foto')
+                                        ->label('Foto')
+                                        ->avatar()
+                                        ->collection('siswa_foto')
+                                        ->conversion('thumb')
+                                        ->moveFiles()
+                                        ->image()
+                                        ->imageEditor()
+                                        ->columnSpanFull(),
                                     TextInput::make('nama')
                                         ->label('Nama Lengkap')
                                         ->required(),
@@ -349,6 +420,30 @@ class Siswa extends Model
                                         ->inline()
                                         ->grouped()
                                         ->required(),
+
+                                    ToggleButtons::make('jenjang_sekolah')
+                                        ->label('Jenjang Sekolah')
+                                        ->options(JenjangSekolah::class)
+                                        ->inline()
+                                        ->grouped()
+                                        ->required(),
+                                    Fieldset::make('Kelas Sekolah')
+                                        ->label('Kelas Sekolah')
+                                        ->schema([
+                                            Select::make('kelas_sekolah')
+                                                ->label('Kelas')
+                                                ->options(KelasSekolah::class)
+                                                ->required(),
+                                            TextInput::make('rombel_kelas_sekolah')
+                                                ->label('Rombel')
+                                                ->length(1)
+                                                ->required(),
+                                        ]),
+                                    Select::make('kelas_pondok')
+                                        ->label('Kelas Pondok')
+                                        ->options(KelasPondok::class)
+                                        ->required(),
+
                                     ToggleButtons::make('kewarganegaraan')
                                         ->label('Kewarganegaraan')
                                         ->inline()
@@ -357,7 +452,6 @@ class Siswa extends Model
                                         ->default(Kewarganegaraan::WNI)
                                         ->required()
                                         ->live(),
-
                                     TextInput::make('nik')
                                         ->label('Nomor Induk Kependudukan')
                                         ->numeric()
@@ -390,7 +484,9 @@ class Siswa extends Model
                                     DatePicker::make('tanggal_lahir')
                                         ->label('Tanggal Lahir')
                                         ->required(),
-                                ])->columns(2),
+                                ])
+                                ->columns(2)
+                                ->columnSpanFull(),
 
                             Section::make('Kontak')
                                 ->schema([
@@ -401,44 +497,20 @@ class Siswa extends Model
                                     TextInput::make('email')
                                         ->label('Email')
                                         ->email(),
-                                ])->columns(2),
+                                ])
+                                ->columns(2)
+                                ->columnSpanFull(),
 
-                            Section::make('Sekolah & Pondok Pesantren')
+                            Section::make('Administrasi')
                                 ->schema([
+                                    DatePicker::make('tanggal_pendaftaran')
+                                        ->label('Tanggal Pendaftaran')
+                                        ->required()
+                                        ->default(now()),
                                     Select::make('pendidikan_terakhir')
                                         ->label('Pendidikan Terakhir')
                                         ->options(PendidikanTerakhir::class)
                                         ->required(fn(Get $get) => $get('kewarganegaraan') == Kewarganegaraan::WNI),
-                                    ToggleButtons::make('jenjang_sekolah')
-                                        ->label('Jenjang Sekolah')
-                                        ->options(JenjangSekolah::class)
-                                        ->inline()
-                                        ->grouped()
-                                        ->required(),
-                                    Fieldset::make('Kelas Sekolah')
-                                        ->label('Kelas Sekolah')
-                                        ->schema([
-                                            Select::make('kelas_sekolah')
-                                                ->label('Kelas')
-                                                ->options(KelasSekolah::class)
-                                                ->required(),
-                                            TextInput::make('rombel_kelas_sekolah')
-                                                ->label('Rombel')
-                                                ->length(1)
-                                                ->required(),
-                                        ]),
-                                    Select::make('kelas_pondok')
-                                        ->label('Kelas Pondok')
-                                        ->options(KelasPondok::class)
-                                        ->required(),
-                                    DatePicker::make('tanggal_masuk')
-                                        ->label('Tanggal Masuk')
-                                        ->required()
-                                        ->default(now()),
-                                ])->columns(2),
-
-                            Section::make('Administrasi')
-                                ->schema([
                                     Select::make('kategori_administrasi')
                                         ->label('Kategori Administrasi')
                                         ->options(KategoriAdministrasi::class)
@@ -453,7 +525,9 @@ class Siswa extends Model
                                         ->options(StatusSiswa::class)
                                         ->default(StatusSiswa::AKTIF)
                                         ->required(),
-                                ])->columns(2),
+                                ])
+                                ->columns(2)
+                                ->columnSpanFull(),
 
                             Section::make('Alamat')
                                 ->schema([
@@ -540,7 +614,9 @@ class Siswa extends Model
                                                 ->required()
                                                 ->columnSpanFull(),
                                         ])->columnSpanFull(),
-                                ])->columns(2),
+                                ])
+                                ->columns(2)
+                                ->columnSpanFull(),
 
                             Section::make('Informasi Tambahan')
                                 ->schema([
@@ -558,7 +634,7 @@ class Siswa extends Model
                                         ->required(),
                                     Select::make('kebutuhan_disabilitas')
                                         ->label('Kebutuhan Disabilitas')
-                                        ->default(KebutuhanDisabilitas::class)
+                                        ->options(KebutuhanDisabilitas::class)
                                         ->default(KebutuhanDisabilitas::TIDAK_ADA->value)
                                         ->required(),
                                     Select::make('cita_cita')
@@ -567,7 +643,9 @@ class Siswa extends Model
                                     Select::make('hobi')
                                         ->label('Hobi')
                                         ->options(Hobi::class),
-                                ])->columns(2),
+                                ])
+                                ->columns(2)
+                                ->columnSpanFull(),
                         ]),
 
                     Tab::make('Informasi Keluarga')
@@ -599,7 +677,8 @@ class Siswa extends Model
                                         ->minValue(1900)
                                         ->maxValue((int) date('Y')), // Limit to current year or earlier
                                 ])
-                                ->columns(2),
+                                ->columns(2)
+                                ->columnSpanFull(),
 
                             Section::make('Ayah')
                                 ->schema([
@@ -666,7 +745,7 @@ class Siswa extends Model
                                                 ->label('Provinsi')
                                                 ->relationship('provinsiAyah', 'nama')
                                                 ->searchable()
-                                                ->required(fn(Get $get) => ($get('status_ayah') == StatusOrangTua::MASIH_HIDUP) && ($get('ayah_tinggal_luar_negeri') == false))
+                                                ->required(fn(Get $get) => $get('status_ayah') == StatusOrangTua::MASIH_HIDUP && $get('ayah_tinggal_luar_negeri') == false)
                                                 ->live(),
                                             Select::make('kota_ayah_id')
                                                 ->label('Kota/Kabupaten')
@@ -678,7 +757,7 @@ class Siswa extends Model
                                                 )
                                                 ->searchable()
                                                 ->visible(fn (Get $get) => $get('provinsi_ayah_id') !== null)
-                                                ->required(fn(Get $get) => ($get('status_ayah') == StatusOrangTua::MASIH_HIDUP) && ($get('ayah_tinggal_luar_negeri') == false))
+                                                ->required(fn(Get $get) => $get('status_ayah') == StatusOrangTua::MASIH_HIDUP && $get('ayah_tinggal_luar_negeri') == false)
                                                 ->live(),
                                             Select::make('kecamatan_ayah_id')
                                                 ->label('Kecamatan')
@@ -690,7 +769,7 @@ class Siswa extends Model
                                                 )
                                                 ->searchable()
                                                 ->visible(fn (Get $get) => $get('kota_ayah_id') !== null)
-                                                ->required(fn(Get $get) => ($get('status_ayah') == StatusOrangTua::MASIH_HIDUP) && ($get('ayah_tinggal_luar_negeri') == false))
+                                                ->required(fn(Get $get) => $get('status_ayah') == StatusOrangTua::MASIH_HIDUP && $get('ayah_tinggal_luar_negeri') == false)
                                                 ->live(),
                                             Select::make('kelurahan_ayah_id')
                                                 ->label('Kelurahan')
@@ -702,25 +781,27 @@ class Siswa extends Model
                                                 )
                                                 ->searchable()
                                                 ->visible(fn (Get $get) => $get('kecamatan_ayah_id') !== null)
-                                                ->required(fn(Get $get) => ($get('status_ayah') == StatusOrangTua::MASIH_HIDUP) && ($get('ayah_tinggal_luar_negeri') == false)),
+                                                ->required(fn(Get $get) => $get('status_ayah') == StatusOrangTua::MASIH_HIDUP && $get('ayah_tinggal_luar_negeri') == false),
                                             TextInput::make('rt_ayah')
                                                 ->label('RT')
-                                                ->required(fn(Get $get) => ($get('status_ayah') == StatusOrangTua::MASIH_HIDUP) && ($get('ayah_tinggal_luar_negeri') == false)),
+                                                ->required(fn(Get $get) => $get('status_ayah') == StatusOrangTua::MASIH_HIDUP && $get('ayah_tinggal_luar_negeri') == false),
                                             TextInput::make('rw_ayah')
                                                 ->label('RW')
-                                                ->required(fn(Get $get) => ($get('status_ayah') == StatusOrangTua::MASIH_HIDUP) && ($get('ayah_tinggal_luar_negeri') == false)),
+                                                ->required(fn(Get $get) => $get('status_ayah') == StatusOrangTua::MASIH_HIDUP && $get('ayah_tinggal_luar_negeri') == false),
                                             TextInput::make('kode_pos_ayah')
                                                 ->label('Kode Pos')
                                                 ->numeric()
                                                 ->length(5)
-                                                ->required(fn(Get $get) => ($get('status_ayah') == StatusOrangTua::MASIH_HIDUP) && ($get('ayah_tinggal_luar_negeri') == false)),
+                                                ->required(fn(Get $get) => $get('status_ayah') == StatusOrangTua::MASIH_HIDUP && $get('ayah_tinggal_luar_negeri') == false),
                                             Select::make('kepemilikan_rumah_ayah')
                                                 ->label('Kepemilikan Rumah')
                                                 ->options(KepemilikanRumah::class)
                                                 ->default(KepemilikanRumah::MILIK_SENDIRI->value)
-                                                ->required(fn(Get $get) => ($get('status_ayah') == StatusOrangTua::MASIH_HIDUP) && ($get('ayah_tinggal_luar_negeri') == false)),
+                                                ->required(fn(Get $get) => $get('status_ayah') == StatusOrangTua::MASIH_HIDUP && $get('ayah_tinggal_luar_negeri') == false),
                                         ])->columns(2),
-                                ])->columns(2),
+                                ])
+                                ->columns(2)
+                                ->columnSpanFull(),
 
                             Section::make('Ibu')
                                 ->schema([
@@ -799,7 +880,7 @@ class Siswa extends Model
                                                 ->relationship('provinsi', 'nama')
                                                 ->searchable()
                                                 ->visible(fn(Get $get) => $get('alamat_ibu_sama_dengan_ayah') == false)
-                                                ->required(fn(Get $get) => ($get('status_ibu') == StatusOrangTua::MASIH_HIDUP) && ($get('ibu_tinggal_luar_negeri') == false))
+                                                ->required(fn(Get $get) => $get('status_ibu' == StatusOrangTua::MASIH_HIDUP && $get('ibu_tinggal_luar_negeri') == false))
                                                 ->live(),
                                             Select::make('kota_ibu_id')
                                                 ->label('Kota/Kabupaten')
@@ -811,7 +892,7 @@ class Siswa extends Model
                                                 )
                                                 ->searchable()
                                                 ->visible(fn(Get $get) => $get('alamat_ibu_sama_dengan_ayah') == false && $get('provinsi_ibu_id') !== null)
-                                                ->required(fn(Get $get) => ($get('status_ibu') == StatusOrangTua::MASIH_HIDUP) && ($get('ibu_tinggal_luar_negeri') == false))
+                                                ->required(fn(Get $get) => $get('status_ibu') == StatusOrangTua::MASIH_HIDUP && $get('ibu_tinggal_luar_negeri') == false)
                                                 ->live(),
                                             Select::make('kecamatan_ibu_id')
                                                 ->label('Kecamatan')
@@ -823,7 +904,7 @@ class Siswa extends Model
                                                 )
                                                 ->searchable()
                                                 ->visible(fn(Get $get) => $get('alamat_ibu_sama_dengan_ayah') == false && $get('kota_ibu_id') !== null)
-                                                ->required(fn(Get $get) => ($get('status_ibu') == StatusOrangTua::MASIH_HIDUP) && ($get('ibu_tinggal_luar_negeri') == false))
+                                                ->required(fn(Get $get) => $get('status_ibu') == StatusOrangTua::MASIH_HIDUP && $get('ibu_tinggal_luar_negeri') == false)
                                                 ->live(),
                                             Select::make('kelurahan_ibu_id')
                                                 ->label('Kelurahan')
@@ -835,29 +916,31 @@ class Siswa extends Model
                                                 )
                                                 ->searchable()
                                                 ->visible(fn(Get $get) => $get('alamat_ibu_sama_dengan_ayah') == false && $get('kecamatan_ibu_id') !== null)
-                                                ->required(fn(Get $get) => ($get('status_ibu') == StatusOrangTua::MASIH_HIDUP) && ($get('ibu_tinggal_luar_negeri') == false)),
+                                                ->required(fn(Get $get) => $get('status_ibu') == StatusOrangTua::MASIH_HIDUP && $get('ibu_tinggal_luar_negeri') == false),
                                             TextInput::make('rt_ibu')
                                                 ->label('RT')
                                                 ->visible(fn(Get $get) => $get('alamat_ibu_sama_dengan_ayah') == false)
-                                                ->required(fn(Get $get) => ($get('status_ibu') == StatusOrangTua::MASIH_HIDUP) && ($get('ibu_tinggal_luar_negeri') == false)),
+                                                ->required(fn(Get $get) => $get('status_ibu') == StatusOrangTua::MASIH_HIDUP && $get('ibu_tinggal_luar_negeri') == false),
                                             TextInput::make('rw_ibu')
                                                 ->label('RW')
                                                 ->visible(fn(Get $get) => $get('alamat_ibu_sama_dengan_ayah') == false)
-                                                ->required(fn(Get $get) => ($get('status_ibu') == StatusOrangTua::MASIH_HIDUP) && ($get('ibu_tinggal_luar_negeri') == false)),
+                                                ->required(fn(Get $get) => $get('status_ibu') == StatusOrangTua::MASIH_HIDUP && $get('ibu_tinggal_luar_negeri') == false),
                                             TextInput::make('kode_pos_ibu')
                                                 ->label('Kode Pos')
                                                 ->numeric()
                                                 ->length(5)
                                                 ->visible(fn(Get $get) => $get('alamat_ibu_sama_dengan_ayah') == false)
-                                                ->required(fn(Get $get) => ($get('status_ibu') == StatusOrangTua::MASIH_HIDUP) && ($get('ibu_tinggal_luar_negeri') == false)),
+                                                ->required(fn(Get $get) => $get('status_ibu') == StatusOrangTua::MASIH_HIDUP && $get('ibu_tinggal_luar_negeri') == false),
                                             Select::make('kepemilikan_rumah_ibu')
                                                 ->label('Kepemilikan Rumah')
                                                 ->options(KepemilikanRumah::class)
                                                 ->default(KepemilikanRumah::MILIK_SENDIRI->value)
                                                 ->visible(fn(Get $get) => $get('alamat_ibu_sama_dengan_ayah') == false)
-                                                ->required(fn(Get $get) => ($get('status_ibu') == StatusOrangTua::MASIH_HIDUP) && ($get('ibu_tinggal_luar_negeri') == false)),
+                                                ->required(fn(Get $get) => $get('status_ibu') == StatusOrangTua::MASIH_HIDUP && $get('ibu_tinggal_luar_negeri') == false),
                                         ])->columns(2),
-                                ])->columns(2),
+                                ])
+                                ->columns(2)
+                                ->columnSpanFull(),
 
                             Section::make('Wali')
                                 ->schema([
@@ -1002,10 +1085,249 @@ class Siswa extends Model
                                                 ->visible(fn(Get $get) => in_array($get('hubungan_wali'), [HubunganWali::KERABAT, HubunganWali::NONKERABAT, HubunganWali::SAUDARA]))
                                                 ->required(fn(Get $get) => ($get('wali_tinggal_luar_negeri') == false)),
                                         ])->columns(2),
-                                ])->columns(2),
+                                ])
+                                ->columns(2)
+                                ->columnSpanFull(),
                         ]),
-                ]),
+                ])
+                ->columnSpanFull(),
         ];
     }
 
+    public static function getColumns(): array
+    {
+        return [
+            TextColumn::make('id')
+                ->label('ID')
+                ->sortable()
+                ->toggleable(isToggledHiddenByDefault: true),
+            SpatieMediaLibraryImageColumn::make('foto')
+                ->label('Foto')
+                ->collection('siswa_foto')
+                ->conversion('thumb'),
+            TextColumn::make('nama')
+                ->label('Nama Lengkap')
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('nama_panggilan')
+                ->label('Nama Panggilan')
+                ->searchable(),
+            TextColumn::make('jenis_kelamin')
+                ->label('Jenis Kelamin')
+                ->badge()
+                ->sortable(),
+            TextColumn::make('jenjang_sekolah')
+                ->label('Jenjang Sekolah')
+                ->badge()
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('kelas_sekolah_rombel')
+                ->label('Kelas Sekolah')
+                ->state(function ($record) {
+                    return $record->kelasRombel;
+                })
+                ->searchable(['kelas_sekolah', 'rombel_kelas_sekolah'])
+                ->sortable(['kelas_sekolah', 'rombel_kelas_sekolah']),
+            TextColumn::make('kelas_pondok')
+                ->label('Kelas Pondok')
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('kewarganegaraan')
+                ->label('Kewarganegaraan')
+                ->sortable(),
+            TextColumn::make('nik')
+                ->label('Nomor Induk Kependudukan')
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('nis')
+                ->label('Nomor Induk Siswa')
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('nism')
+                ->label('Nomor Induk Siswa Madrasah')
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('nisn')
+                ->label('Nomor Induk Siswa Nasional')
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('nfc')
+                ->label('Kode NFC')
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('tempatLahir.nama')
+                ->label('Tempat Lahir')
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('tanggal_lahir')
+                ->label('Tanggal Lahir')
+                ->date()
+                ->sortable(),
+            TextColumn::make('nomor_telepon')
+                ->label('Nomor Telepon')
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('email')
+                ->label('Email')
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('tanggal_pendaftaran')
+                ->label('Tanggal Pendaftaran')
+                ->date()
+                ->sortable(),
+            TextColumn::make('pendidikan_terakhir')
+                ->label('Pendidikan Terakhir')
+                ->badge()
+                ->sortable(),
+            TextColumn::make('kategori_administrasi')
+                ->label('Kategori Administrasi')
+                ->badge()
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('sumber_pembiayaan')
+                ->label('Sumber Pembiayaan')
+                ->badge()
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('status_siswa')
+                ->label('Status Siswa')
+                ->badge()
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('status_mukim')
+                ->label('Status Mukim')
+                ->badge()
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('status_tinggal')
+                ->label('Status Tinggal')
+                ->badge()
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('alamat')
+                ->label('Alamat Lengkap')
+                ->limit(50)
+                ->searchable(),
+            TextColumn::make('provinsi.nama')
+                ->label('Provinsi')
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('kota.nama')
+                ->label('Kota/Kabupaten')
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('kecamatan.nama')
+                ->label('Kecamatan')
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('kelurahan.nama')
+                ->label('Kelurahan')
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('rt')
+                ->label('RT')
+                ->toggledHiddenByDefault()
+                ->sortable(),
+            TextColumn::make('rw')
+                ->label('RW')
+                ->toggledHiddenByDefault()
+                ->sortable(),
+            TextColumn::make('kode_pos')
+                ->label('Kode Pos')
+                ->toggledHiddenByDefault()
+                ->sortable(),
+            TextColumn::make('asal_kelompok')
+                ->label('Asal Kelompok')
+                ->searchable(),
+            TextColumn::make('asal_desa')
+                ->label('Asal Desa')
+                ->searchable(),
+            TextColumn::make('asal_daerah')
+                ->label('Asal Daerah')
+                ->searchable(),
+            TextColumn::make('golongan_darah')
+                ->label('Golongan Darah')
+                ->sortable(),
+            TextColumn::make('riwayat_penyakit')
+                ->label('Riwayat Penyakit')
+                ->badge()
+                ->limitList(3),
+            TextColumn::make('kebutuhan_khusus')
+                ->label('Kebutuhan Khusus')
+                ->badge()
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('kebutuhan_disabilitas')
+                ->label('Kebutuhan Disabilitas')
+                ->badge()
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('nama_ayah')
+                ->label('Nama Lengkap')
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('status_ayah')
+                ->label('Status Ayah')
+                ->badge()
+                ->sortable(),
+            TextColumn::make('nomor_telepon_ayah')
+                ->label('Nomor Telepon Ayah')
+                ->sortable(),
+            TextColumn::make('pekerjaan_ayah')
+                ->label('Pekerjaan Ayah')
+                ->sortable(),
+            TextColumn::make('penghasilan_ayah')
+                ->label('Penghasilan Ayah')
+                ->badge()
+                ->sortable(),
+            TextColumn::make('nama_ibu')
+                ->label('Nama Lengkap')
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('status_ibu')
+                ->label('Status Ibu')
+                ->badge()
+                ->sortable(),
+            TextColumn::make('nomor_telepon_ibu')
+                ->label('Nomor Telepon Ibu')
+                ->sortable(),
+            TextColumn::make('pekerjaan_ibu')
+                ->label('Pekerjaan Ibu')
+                ->sortable(),
+            TextColumn::make('penghasilan_ibu')
+                ->label('Penghasilan Ibu')
+                ->badge()
+                ->sortable(),
+            TextColumn::make('nama_wali')
+                ->label('Nama Lengkap')
+                ->searchable()
+                ->sortable(),
+            TextColumn::make('hubungan_wali')
+                ->label('Hubungan Wali')
+                ->badge()
+                ->sortable(),
+            TextColumn::make('nomor_telepon_wali')
+                ->label('Nomor Telepon Wali')
+                ->sortable(),
+            TextColumn::make('pekerjaan_wali')
+                ->label('Pekerjaan Wali')
+                ->sortable(),
+            TextColumn::make('penghasilan_wali')
+                ->label('Penghasilan Wali')
+                ->badge()
+                ->sortable(),
+            TextColumn::make('created_at')
+                ->dateTime()
+                ->sortable()
+                ->toggleable(isToggledHiddenByDefault: true),
+            TextColumn::make('updated_at')
+                ->dateTime()
+                ->sortable()
+                ->toggleable(isToggledHiddenByDefault: true),
+            TextColumn::make('deleted_at')
+                ->dateTime()
+                ->sortable()
+                ->toggleable(isToggledHiddenByDefault: true),
+        ];
+    }
 }

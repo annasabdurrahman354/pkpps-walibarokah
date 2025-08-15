@@ -29,7 +29,6 @@ enum Pekerjaan : string implements HasLabel {
     case POLITIKUS = 'politikus';
     case PRAMUGARA = 'pramugara';
     case PRAMUGARI = 'pramugari';
-
     case PENGACARA = 'pengacara';
     case PEGAWAI_SWASTA = 'pegawai swasta';
     case SATPAM = 'satpam';
@@ -65,13 +64,15 @@ enum Pekerjaan : string implements HasLabel {
             self::POLRI => 'Polri',
             self::POLITIKUS => 'Politikus',
             self::PRAMUGARA => 'Pramugara',
+            self::PRAMUGARI => 'Pramugari',
             self::PENGACARA => 'Pengacara',
             self::PEGAWAI_SWASTA => 'Pegawai Swasta',
             self::SATPAM => 'Satpam',
             self::SENIMAN => 'Seniman',
             self::SOPIR => 'Sopir',
-            self::TNI => 'TNI/Polri',
+            self::TNI => 'TNI',
             self::WIRASWASTA => 'Wiraswasta',
+            default => ''
         };
     }
 }

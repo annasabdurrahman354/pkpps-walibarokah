@@ -20,8 +20,13 @@ return new class extends Migration
             $table->string('nama');
             $table->string('nama_panggilan');
             $table->string('jenis_kelamin');
-            $table->string('kewarganegaraan')->nullable();
 
+            $table->string('jenjang_sekolah');
+            $table->string('kelas_sekolah');
+            $table->string('rombel_kelas_sekolah');
+            $table->string('kelas_pondok');
+
+            $table->string('kewarganegaraan');
             $table->string('nik', 16)->unique()->nullable();
             $table->string('nis')->unique()->nullable();
             $table->string('nism', 18)->unique()->nullable();
@@ -35,13 +40,8 @@ return new class extends Migration
             $table->string('nomor_telepon', 16)->nullable();
             $table->string('email')->unique()->nullable();
 
+            $table->date('tanggal_pendaftaran')->nullable();
             $table->string('pendidikan_terakhir')->nullable();
-            $table->string('jenjang_sekolah');
-            $table->string('kelas_sekolah');
-            $table->string('rombel_kelas_sekolah');
-            $table->string('kelas_pondok');
-            $table->date('tanggal_masuk')->nullable();
-
             $table->string('kategori_administrasi');
             $table->string('sumber_pembiayaan')->nullable();
             $table->string('status_siswa');
@@ -95,7 +95,7 @@ return new class extends Migration
             $table->string('alamat_ayah')->nullable();
             $table->unsignedTinyInteger('provinsi_ayah_id')->nullable();
             $table->foreign('provinsi_ayah_id')->references('id')->on('provinsi')->nullOnDelete()->cascadeOnUpdate();
-            $table->unsignedSmallInteger('kota_id')->nullable();
+            $table->unsignedSmallInteger('kota_ayah_id')->nullable();
             $table->foreign('kota_ayah_id')->references('id')->on('kota')->nullOnDelete()->cascadeOnUpdate();
             $table->unsignedBigInteger('kecamatan_ayah_id')->nullable();
             $table->foreign('kecamatan_ayah_id')->references('id')->on('kecamatan')->nullOnDelete()->cascadeOnUpdate();
@@ -163,10 +163,7 @@ return new class extends Migration
             $table->string('kode_pos_wali', 5)->nullable();
             $table->string('kepemilikan_rumah_wali')->nullable();
 
-            $table->string('password');
-            $table->timestamp('email_verified_at')->nullable();
             $table->timestamps();
-            $table->rememberToken();
             $table->softDeletes();
         });
 
@@ -180,7 +177,7 @@ return new class extends Migration
     {
         Schema::disableForeignKeyConstraints();
 
-        Schema::dropIfExists('users');
+        Schema::dropIfExists('siswa');
 
         Schema::enableForeignKeyConstraints();
     }

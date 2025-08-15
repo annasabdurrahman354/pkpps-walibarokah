@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('nama');
             $table->string('nama_panggilan');
             $table->string('jenis_kelamin');
-            $table->string('kewarganegaraan')->nullable();
+            $table->string('kewarganegaraan');
             $table->json('unit');
 
             $table->string('nik', 16)->unique()->nullable();
@@ -34,10 +34,6 @@ return new class extends Migration
             $table->date('tanggal_mulai_tugas')->nullable();
             $table->string('status');
 
-            $table->string('pendidikan_terakhir')->nullable();
-            $table->string('jurusan')->nullable();
-            $table->string('golongan_darah')->nullable();
-
             $table->string('alamat')->nullable();
             $table->unsignedTinyInteger('provinsi_id')->nullable();
             $table->foreign('provinsi_id')->references('id')->on('provinsi')->nullOnDelete()->cascadeOnUpdate();
@@ -51,22 +47,28 @@ return new class extends Migration
             $table->string('rw')->nullable();
             $table->string('kode_pos', 5)->nullable();
 
-            $table->string('asal_kelompok');
-            $table->string('asal_desa');
-            $table->string('asal_daerah');
-            $table->string('asal_pondok');
+            $table->string('asal_kelompok')->nullable();
+            $table->string('asal_desa')->nullable();
+            $table->string('asal_daerah')->nullable();
+            $table->string('asal_pondok')->nullable();
+
+            $table->string('pendidikan_terakhir')->nullable();
+            $table->string('jurusan')->nullable();
+            $table->string('golongan_darah')->nullable();
 
             $table->string('status_ayah')->nullable();
             $table->string('nama_ayah')->nullable();
             $table->string('nomor_telepon_ayah', 16)->nullable();
+
             $table->string('status_ibu')->nullable();
             $table->string('nama_ibu')->nullable();
             $table->string('nomor_telepon_ibu', 16)->nullable();
 
-            $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->rememberToken();
+            $table->timestamp('email_verified_at')->nullable();
             $table->timestamps();
+            $table->softDeletes();
         });
 
         Schema::create('sessions', function (Blueprint $table) {

@@ -36,6 +36,7 @@ class AdminPanelProvider extends PanelProvider
             ->registration()
             ->login()
             ->authGuard('web')
+            ->viteTheme('resources/css/filament/admin/theme.css')
             ->favicon(fn (PengaturanSitus $settings) => Storage::url($settings->site_favicon))
             ->brandName(fn (PengaturanSitus $settings) => $settings->brand_name)
             ->brandLogo(fn (PengaturanSitus $settings) => Storage::url($settings->brand_logo))

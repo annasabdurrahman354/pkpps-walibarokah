@@ -2,7 +2,8 @@
 
 namespace Database\Seeders;
 
-use App\Models\Operator;
+use App\Enums\JenisKelamin;
+use App\Enums\StatusUser;
 use App\Models\Role;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -19,9 +20,13 @@ class UsersTableSeeder extends Seeder
         DB::table('users')->insert([
             'id' => $sid,
             'nama' => 'Super Admin',
-            'username' => 'superadmin',
-            'email' => 'superadmin@tcm-walibarokah.org',
-            'nomor_telepon' => '0855555555',
+            'nama_panggilan' => 'Super Admin',
+            'jenis_kelamin' => JenisKelamin::LAKI_LAKI,
+            'kewarganegaraan' => 'wni',
+            'unit' => json_encode(['ula', 'wustha', 'ulya']), // Encode the array as JSON
+            'status' => StatusUser::AKTIF,
+            'email' => 'superadmin@pkpps-walibarokah.org',
+            'nomor_telepon' => '0',
             'email_verified_at' => now(),
             'password' => Hash::make('superadmin'),
             'created_at' => now(),
